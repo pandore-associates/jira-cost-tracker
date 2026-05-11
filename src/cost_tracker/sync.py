@@ -3,7 +3,14 @@ from datetime import datetime, timezone
 from loguru import logger
 
 from cost_tracker.config import Settings
-from cost_tracker.db import finish_sync_run, get_conn, start_sync_run, upsert_author, upsert_project, upsert_worklog
+from cost_tracker.db import (
+    finish_sync_run,
+    get_conn,
+    start_sync_run,
+    upsert_author,
+    upsert_project,
+    upsert_worklog,
+)
 from cost_tracker.jira_client import JiraClient
 
 
