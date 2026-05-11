@@ -79,8 +79,8 @@ def _render_chart(
 
         # Budget / plan band
         x_span = [0, len(dates) - 1] if len(dates) > 1 else [0, 0]
-        plt.plot(x_span, [band_min, band_min], label=f"Plan  ({band_min:,.0f})", color="green")
-        plt.plot(x_span, [band_max, band_max], label=f"+30%  ({band_max:,.0f})", color="red")
+        plt.plot(x_span, [band_min, band_min], label=f"Plan  ({band_min:.0f}%)", color="green")
+        plt.plot(x_span, [band_max, band_max], label=f"+{band_max - band_min:.0f}%  ({band_max:.0f}%)", color="red")
 
     return Text.from_ansi(plt.build())
 
@@ -113,30 +113,31 @@ class OverviewTab(Widget):
 
         chart_w = max(10, w // 2 - 2)
         chart_h = max(5, h - 2)
+        contingency_pct = self._settings.plan_contingency * 100
 
-        # --- Budget chart (€) ---
+        # --- Budget chart (% of plan) ---
         dates, cum_cost_tasks, cum_cost_total = _merge_cumulative(jira_rows, overhead_rows, "cost")
-        budget_min = self._settings.plan_budget_eur
-        budget_max = round(budget_min * (1 + self._settings.plan_contingency), 2)
+        budget_base = self._settings.plan_budget_eur or 1.0
+        pct_cost_tasks = [round(v / budget_base * 100, 2) for v in cum_cost_tasks]
+        pct_cost_total = [round(v / budget_base * 100, 2) for v in cum_cost_total]
         budget_chart = _render_chart(
-            "Budget  (€)",
-            dates, cum_cost_tasks, cum_cost_total,
-            budget_min, budget_max,
-            "€",
+            f"Budget  (% of {budget_base:,.0f} €)",
+            dates, pct_cost_tasks, pct_cost_total,
+            100.0, round(100 + contingency_pct, 1),
+            "%",
             chart_w, chart_h,
         )
 
-        # --- Man-days chart ---
+        # --- Man-days chart (% of plan) ---
         dates2, cum_h_tasks, cum_h_total = _merge_cumulative(jira_rows, overhead_rows, "hours")
-        cum_days_tasks = [round(h / 8, 2) for h in cum_h_tasks]
-        cum_days_total = [round(h / 8, 2) for h in cum_h_total]
-        days_min = self._settings.plan_man_days
-        days_max = round(days_min * (1 + self._settings.plan_contingency), 1)
+        days_base = self._settings.plan_man_days or 1.0
+        pct_days_tasks = [round(h / 8 / days_base * 100, 2) for h in cum_h_tasks]
+        pct_days_total = [round(h / 8 / days_base * 100, 2) for h in cum_h_total]
         mandays_chart = _render_chart(
-            "Man-days",
-            dates2, cum_days_tasks, cum_days_total,
-            days_min, days_max,
-            "days",
+            f"Man-days  (% of {days_base:.0f} d)",
+            dates2, pct_days_tasks, pct_days_total,
+            100.0, round(100 + contingency_pct, 1),
+            "%",
             chart_w, chart_h,
         )
 
