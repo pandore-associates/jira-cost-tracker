@@ -1,0 +1,75 @@
+from dataclasses import dataclass
+from typing import Any
+
+import httpx
+
+
+@dataclass
+class WorklogEntry:
+    worklog_id: str
+    issue_key: str
+    project_key: str
+    issue_summary: str
+    author_account_id: str
+    author_display_name: str
+    time_spent_seconds: int
+    started: str
+
+
+class JiraClient:
+    def __init__(self, base_url: str, email: str, api_token: str) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._auth = httpx.BasicAuth(email, api_token)
+
+    def get_worklogs_for_project(self, project_key: str) -> list[WorklogEntry]:
+        result: list[WorklogEntry] = []
+        for issue in self._get_all_issues(project_key):
+            result.extend(self._get_issue_worklogs(issue))
+        return result
+
+    def _get_all_issues(self, project_key: str) -> list[dict[str, Any]]:
+        issues: list[dict[str, Any]] = []
+        start_at = 0
+        while True:
+            resp = httpx.get(
+                f"{self._base_url}/rest/api/3/search",
+                auth=self._auth,
+                params={
+                    "jql": f"project={project_key}",
+                    "fields": "summary",
+                    "startAt": start_at,
+                    "maxResults": 100,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data: dict[str, Any] = resp.json()
+            issues.extend(data["issues"])
+            if len(issues) >= int(data["total"]):
+                break
+            start_at += len(data["issues"])
+        return issues
+
+    def _get_issue_worklogs(self, issue: dict[str, Any]) -> list[WorklogEntry]:
+        issue_key: str = issue["key"]
+        project_key = issue_key.split("-")[0]
+        summary: str = issue["fields"]["summary"]
+        resp = httpx.get(
+            f"{self._base_url}/rest/api/3/issue/{issue_key}/worklog",
+            auth=self._auth,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return [
+            WorklogEntry(
+                worklog_id=str(w["id"]),
+                issue_key=issue_key,
+                project_key=project_key,
+                issue_summary=summary,
+                author_account_id=w["author"]["accountId"],
+                author_display_name=w["author"]["displayName"],
+                time_spent_seconds=int(w["timeSpentSeconds"]),
+                started=w["started"],
+            )
+            for w in resp.json().get("worklogs", [])
+        ]
