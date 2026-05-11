@@ -2,50 +2,19 @@ from typing import Any
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic_settings.sources import EnvSettingsSource
+from pydantic_settings.sources import EnvSettingsSource, InitSettingsSource
 
 
-class CommaSeparatedEnvSource(EnvSettingsSource):
-    """Custom env source that treats jira_projects as simple string, not complex."""
+class _EnvSource(EnvSettingsSource):
+    """Env source that skips JSON decoding for jira_projects."""
 
-    def __call__(self) -> dict[str, Any]:
-        """Override to handle comma-separated projects."""
-        from pydantic_settings.exceptions import SettingsError
-
-        data: dict[str, Any] = {}
-
-        for field_name, field in self.settings_cls.model_fields.items():
-            try:
-                field_value, _, value_is_complex = self._get_resolved_field_value(
-                    field, field_name
-                )
-            except Exception as e:
-                raise SettingsError(
-                    f'error getting value for field "{field_name}" '
-                    f'from source "{self.__class__.__name__}"'
-                ) from e
-
-            # Special handling for jira_projects: don't treat as complex
-            if field_name == "jira_projects" and isinstance(field_value, str):
-                data[field_name] = [
-                    p.strip() for p in field_value.split(",") if p.strip()
-                ]
-                continue
-
-            try:
-                field_value = self.prepare_field_value(
-                    field_name, field, field_value, value_is_complex
-                )
-            except ValueError as e:
-                raise SettingsError(
-                    f'error parsing value for field "{field_name}" '
-                    f'from source "{self.__class__.__name__}"'
-                ) from e
-
-            if field_value is not None:
-                data[field_name] = field_value
-
-        return data
+    def prepare_field_value(
+        self, field_name: str, field: Any, value: Any, value_is_complex: bool
+    ) -> Any:
+        """Return string as-is for jira_projects to let validator handle parsing."""
+        if field_name == "jira_projects" and isinstance(value, str):
+            return value
+        return super().prepare_field_value(field_name, field, value, value_is_complex)
 
 
 class Settings(BaseSettings):
@@ -59,30 +28,25 @@ class Settings(BaseSettings):
     export_dir: str = "./exports"
 
     @classmethod
-    def _settings_build_values(
-        cls, sources: tuple[Any, ...], init_kwargs: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Override to replace EnvSettingsSource with our custom one."""
-        # Replace EnvSettingsSource with CommaSeparatedEnvSource
-        custom_sources = []
-        for source in sources:
-            if (
-                isinstance(source, EnvSettingsSource)
-                and type(source) is EnvSettingsSource
-            ):
-                custom_sources.append(CommaSeparatedEnvSource(cls))
-            else:
-                custom_sources.append(source)
-
-        # Call parent implementation with modified sources
-        return super()._settings_build_values(tuple(custom_sources), init_kwargs)
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: InitSettingsSource,
+        env_settings: EnvSettingsSource,
+        dotenv_settings: Any,
+        file_secret_settings: Any,
+    ) -> tuple[Any, ...]:
+        """Replace default env source with our custom one."""
+        return (
+            init_settings,
+            _EnvSource(settings_cls),
+            dotenv_settings,
+            file_secret_settings,
+        )
 
     @field_validator("jira_projects", mode="before")
     @classmethod
-    def parse_projects(cls, v: object) -> list[str]:
+    def parse_projects(cls, v: Any) -> list[str]:
         if isinstance(v, str):
             return [p.strip() for p in v.split(",") if p.strip()]
-        if isinstance(v, list):
-            return v
-        # Fallback: return empty list if not a string or list
-        return []
+        return list(v) if v else []
