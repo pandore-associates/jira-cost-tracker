@@ -131,11 +131,11 @@ def test_get_assignees_with_cost(db_path: str) -> None:
         rows = get_assignees_with_cost(conn)
     assert len(rows) == 1
     assert rows[0]["display_name"] == "Alice"
-    assert rows[0]["man_days"] == 1  # 2 h ceiled to 1 man-day
-    assert rows[0]["cost_eur"] == 800.0  # 1 day × €100/h × 8 h
+    assert rows[0]["man_days"] == 0.5  # 2 h ceiled to 1 half-day
+    assert rows[0]["cost_eur"] == 400.0  # 0.5 day × €100/h × 8 h
 
 
-def test_get_assignees_full_day_is_not_double_counted(db_path: str) -> None:
+def test_get_assignees_full_day_is_one_day(db_path: str) -> None:
     with get_conn(db_path) as conn:
         upsert_author(conn, "acc1", "Alice", "2026-05-11T10:00:00")
         set_rate(conn, "acc1", 100.0, "2026-05-11T10:00:00")
@@ -145,8 +145,22 @@ def test_get_assignees_full_day_is_not_double_counted(db_path: str) -> None:
             "2026-05-11T10:00:00",
         )
         rows = get_assignees_with_cost(conn)
-    assert rows[0]["man_days"] == 1  # exactly 8 h = 1 day, no ceiling needed
+    assert rows[0]["man_days"] == 1.0  # exactly 8 h = 1 day
     assert rows[0]["cost_eur"] == 800.0
+
+
+def test_get_assignees_nine_hours_rounds_to_one_and_half_days(db_path: str) -> None:
+    with get_conn(db_path) as conn:
+        upsert_author(conn, "acc1", "Alice", "2026-05-11T10:00:00")
+        set_rate(conn, "acc1", 100.0, "2026-05-11T10:00:00")
+        upsert_worklog(
+            conn,
+            _wl(time_spent_seconds=32400, assignee_account_id="acc1", assignee_display_name="Alice"),  # 9 h
+            "2026-05-11T10:00:00",
+        )
+        rows = get_assignees_with_cost(conn)
+    assert rows[0]["man_days"] == 1.5  # 9 h → ceil(9/4) = 3 half-days = 1.5 days
+    assert rows[0]["cost_eur"] == 1200.0  # 1.5 × €100/h × 8 h
 
 
 def test_get_assignees_groups_by_assignee_not_author(db_path: str) -> None:
@@ -168,8 +182,8 @@ def test_get_assignees_groups_by_assignee_not_author(db_path: str) -> None:
         rows = get_assignees_with_cost(conn)
     assert len(rows) == 1
     assert rows[0]["display_name"] == "Bob"
-    assert rows[0]["man_days"] == 1  # 1 h ceiled to 1 man-day
-    assert rows[0]["cost_eur"] == 400.0  # 1 day × €50/h × 8 h
+    assert rows[0]["man_days"] == 0.5  # 1 h ceiled to 1 half-day
+    assert rows[0]["cost_eur"] == 200.0  # 0.5 day × €50/h × 8 h
 
 
 def test_set_rate_updates_value(db_path: str) -> None:

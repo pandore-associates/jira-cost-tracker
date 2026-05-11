@@ -35,7 +35,7 @@ class AssigneesTab(Widget):
             t.add_row(
                 row["display_name"],
                 str(row["issue_count"]),
-                str(row["man_days"]),
+                f"{row['man_days']:.1f}",
                 f"€ {cost:,.2f}",
                 rate,
             )

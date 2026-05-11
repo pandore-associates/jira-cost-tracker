@@ -145,16 +145,18 @@ def get_issues_with_cost(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 
 
 def get_assignees_with_cost(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    # Cost is ceiled to the nearest man-day (8 h) per assignee before multiplying by rate.
-    # Integer ceiling: (total_seconds + 28799) / 28800  (28800 = 8 * 3600)
+    # Cost is ceiled to the nearest half man-day (4 h) per assignee before multiplying by rate.
+    # half_days = integer ceiling of (total_seconds / 14400)  (14400 = 4 * 3600)
+    # man_days  = half_days * 0.5
+    # cost      = half_days * rate_eur * 4
     return conn.execute(  # type: ignore[return-value]
         """SELECT
                COALESCE(w.assignee_account_id, '') AS account_id,
                COALESCE(w.assignee_display_name, 'Unassigned') AS display_name,
                r.rate_eur,
                COUNT(DISTINCT w.issue_key) AS issue_count,
-               (SUM(w.time_spent_seconds) + 28799) / 28800 AS man_days,
-               ROUND((SUM(w.time_spent_seconds) + 28799) / 28800 * COALESCE(r.rate_eur, 0) * 8, 2) AS cost_eur
+               (SUM(w.time_spent_seconds) + 14399) / 14400 * 0.5 AS man_days,
+               ROUND((SUM(w.time_spent_seconds) + 14399) / 14400 * COALESCE(r.rate_eur, 0) * 4, 2) AS cost_eur
            FROM worklogs w
            LEFT JOIN hourly_rates r ON w.assignee_account_id = r.account_id
            GROUP BY COALESCE(w.assignee_account_id, '')
