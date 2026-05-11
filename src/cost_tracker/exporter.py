@@ -25,7 +25,7 @@ def _write_header(ws: Worksheet, headers: list[str]) -> None:
 def _autofit(ws: Worksheet) -> None:
     for col in ws.columns:  # type: ignore[attr-defined]
         width = max((len(str(c.value or "")) for c in col), default=0)
-        ws.column_dimensions[get_column_letter(col[0].column)].width = min(width + 4, 60)
+        ws.column_dimensions[get_column_letter(col[0].column or 1)].width = min(width + 4, 60)
 
 
 def export_excel(settings: Settings) -> Path:
