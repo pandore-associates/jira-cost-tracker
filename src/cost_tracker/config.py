@@ -2,19 +2,26 @@ from typing import Any
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic_settings.sources import EnvSettingsSource, InitSettingsSource
+from pydantic_settings.sources import DotEnvSettingsSource, EnvSettingsSource, InitSettingsSource
 
 
-class _EnvSource(EnvSettingsSource):
-    """Env source that skips JSON decoding for jira_projects."""
+class _NoJsonForProjects:
+    """Mixin: return jira_projects as a raw string so the field_validator can parse it."""
 
     def prepare_field_value(
         self, field_name: str, field: Any, value: Any, value_is_complex: bool
     ) -> Any:
-        """Return string as-is for jira_projects to let validator handle parsing."""
         if field_name == "jira_projects" and isinstance(value, str):
             return value
-        return super().prepare_field_value(field_name, field, value, value_is_complex)
+        return super().prepare_field_value(field_name, field, value, value_is_complex)  # type: ignore[misc]
+
+
+class _EnvSource(_NoJsonForProjects, EnvSettingsSource):
+    pass
+
+
+class _DotEnvSource(_NoJsonForProjects, DotEnvSettingsSource):
+    pass
 
 
 class Settings(BaseSettings):
@@ -36,11 +43,10 @@ class Settings(BaseSettings):
         dotenv_settings: Any,
         file_secret_settings: Any,
     ) -> tuple[Any, ...]:
-        """Replace default env source with our custom one."""
         return (
             init_settings,
             _EnvSource(settings_cls),
-            dotenv_settings,
+            _DotEnvSource(settings_cls),
             file_secret_settings,
         )
 
