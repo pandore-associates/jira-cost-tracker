@@ -34,10 +34,10 @@ class CostTrackerApp(App[None]):
         with TabbedContent():
             with TabPane("By Issue", id="issues"):
                 yield IssuesTab(self._settings)
-            with TabPane("By Assignee", id="assignees"):
-                yield AssigneesTab(self._settings)
             with TabPane("Overhead", id="overhead"):
                 yield OverheadTab(self._settings)
+            with TabPane("By Assignee", id="assignees"):
+                yield AssigneesTab(self._settings)
             with TabPane("Rates", id="rates"):
                 yield RatesTab(self._settings)
             with TabPane("Sync Log", id="logs"):
