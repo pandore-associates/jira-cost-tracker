@@ -38,6 +38,8 @@ def run_sync(settings: Settings) -> tuple[int, str | None]:
                 for wl in worklogs:
                     upsert_worklog(conn, wl, synced_at)
                     upsert_author(conn, wl.author_account_id, wl.author_display_name, synced_at)
+                    if wl.assignee_account_id and wl.assignee_display_name:
+                        upsert_author(conn, wl.assignee_account_id, wl.assignee_display_name, synced_at)
             total += len(worklogs)
             logger.info(f"Synced {len(worklogs)} worklogs for {project_key}")
     except Exception as exc:

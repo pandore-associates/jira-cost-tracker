@@ -28,6 +28,8 @@ def _wl(**kwargs: object) -> WorklogEntry:
         "author_display_name": "Alice",
         "time_spent_seconds": 3600,
         "started": "2026-05-11T09:00:00.000+0000",
+        "assignee_account_id": "bob",
+        "assignee_display_name": "Bob",
     }
     defaults.update(kwargs)
     return WorklogEntry(**defaults)  # type: ignore[arg-type]
@@ -55,6 +57,17 @@ def test_run_sync_upserts_author(MockClient: MagicMock, settings: Settings) -> N
     with get_conn(settings.db_path) as conn:
         row = conn.execute("SELECT * FROM hourly_rates WHERE account_id='acc1'").fetchone()
     assert row["display_name"] == "Alice"
+
+
+@patch("cost_tracker.sync.JiraClient")
+def test_run_sync_upserts_assignee(MockClient: MagicMock, settings: Settings) -> None:
+    MockClient.return_value.get_worklogs_for_project.return_value = [_wl()]
+
+    run_sync(settings)
+
+    with get_conn(settings.db_path) as conn:
+        row = conn.execute("SELECT * FROM hourly_rates WHERE account_id='bob'").fetchone()
+    assert row["display_name"] == "Bob"
 
 
 @patch("cost_tracker.sync.JiraClient")

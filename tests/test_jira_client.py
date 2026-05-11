@@ -19,7 +19,13 @@ def test_get_worklogs_returns_entries(client: JiraClient) -> None:
         return_value=httpx.Response(
             200,
             json={
-                "issues": [{"key": "CSP-1", "fields": {"summary": "Test issue"}}],
+                "issues": [{
+                    "key": "CSP-1",
+                    "fields": {
+                        "summary": "Test issue",
+                        "assignee": {"accountId": "bob", "displayName": "Bob"},
+                    },
+                }],
                 "isLast": True,
             },
         )
@@ -48,6 +54,8 @@ def test_get_worklogs_returns_entries(client: JiraClient) -> None:
     assert result[0].project_key == "CSP"
     assert result[0].author_account_id == "acc1"
     assert result[0].time_spent_seconds == 3600
+    assert result[0].assignee_account_id == "bob"
+    assert result[0].assignee_display_name == "Bob"
 
 
 @respx.mock
@@ -66,7 +74,7 @@ def test_get_worklogs_paginates(client: JiraClient) -> None:
             httpx.Response(
                 200,
                 json={
-                    "issues": [{"key": "CSP-1", "fields": {"summary": "Issue 1"}}],
+                    "issues": [{"key": "CSP-1", "fields": {"summary": "Issue 1", "assignee": None}}],
                     "isLast": False,
                     "nextPageToken": "token-page-2",
                 },
@@ -74,7 +82,7 @@ def test_get_worklogs_paginates(client: JiraClient) -> None:
             httpx.Response(
                 200,
                 json={
-                    "issues": [{"key": "CSP-2", "fields": {"summary": "Issue 2"}}],
+                    "issues": [{"key": "CSP-2", "fields": {"summary": "Issue 2", "assignee": None}}],
                     "isLast": True,
                 },
             ),
@@ -96,7 +104,7 @@ def test_issue_with_no_worklogs(client: JiraClient) -> None:
     respx.post(_SEARCH_URL).mock(
         return_value=httpx.Response(
             200,
-            json={"issues": [{"key": "CSP-1", "fields": {"summary": "No work"}}], "isLast": True},
+            json={"issues": [{"key": "CSP-1", "fields": {"summary": "No work", "assignee": None}}], "isLast": True},
         )
     )
     respx.get("https://example.atlassian.net/rest/api/3/issue/CSP-1/worklog").mock(

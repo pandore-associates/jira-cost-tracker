@@ -15,6 +15,8 @@ class WorklogEntry:
     author_display_name: str
     time_spent_seconds: int
     started: str
+    assignee_account_id: str | None = None
+    assignee_display_name: str | None = None
 
 
 class JiraClient:
@@ -39,7 +41,7 @@ class JiraClient:
         while True:
             body: dict[str, Any] = {
                 "jql": f"project={project_key}",
-                "fields": ["summary"],
+                "fields": ["summary", "assignee"],
                 "maxResults": 100,
             }
             if next_page_token is not None:
@@ -64,6 +66,9 @@ class JiraClient:
         issue_key: str = issue["key"]
         project_key = issue_key.split("-")[0]
         summary: str = issue["fields"]["summary"]
+        assignee: dict[str, Any] | None = issue["fields"].get("assignee")
+        assignee_account_id: str | None = assignee["accountId"] if assignee else None
+        assignee_display_name: str | None = assignee["displayName"] if assignee else None
         resp = httpx.get(
             f"{self._base_url}/rest/api/3/issue/{issue_key}/worklog",
             auth=self._auth,
@@ -86,6 +91,8 @@ class JiraClient:
                 author_display_name=w["author"]["displayName"],
                 time_spent_seconds=int(w["timeSpentSeconds"]),
                 started=w["started"],
+                assignee_account_id=assignee_account_id,
+                assignee_display_name=assignee_display_name,
             )
             for w in worklogs_raw
         ]

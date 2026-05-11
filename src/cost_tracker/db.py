@@ -15,15 +15,17 @@ CREATE TABLE IF NOT EXISTS hourly_rates (
 );
 
 CREATE TABLE IF NOT EXISTS worklogs (
-    worklog_id          TEXT PRIMARY KEY,
-    issue_key           TEXT NOT NULL,
-    project_key         TEXT NOT NULL,
-    issue_summary       TEXT NOT NULL,
-    author_account_id   TEXT NOT NULL,
-    author_display_name TEXT NOT NULL,
-    time_spent_seconds  INTEGER NOT NULL,
-    started             TEXT NOT NULL,
-    synced_at           TEXT NOT NULL
+    worklog_id            TEXT PRIMARY KEY,
+    issue_key             TEXT NOT NULL,
+    project_key           TEXT NOT NULL,
+    issue_summary         TEXT NOT NULL,
+    author_account_id     TEXT NOT NULL,
+    author_display_name   TEXT NOT NULL,
+    time_spent_seconds    INTEGER NOT NULL,
+    started               TEXT NOT NULL,
+    synced_at             TEXT NOT NULL,
+    assignee_account_id   TEXT,
+    assignee_display_name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS sync_runs (
@@ -58,21 +60,35 @@ def get_conn(db_path: str) -> Generator[sqlite3.Connection, None, None]:
         conn.close()
 
 
+_MIGRATIONS = [
+    "ALTER TABLE worklogs ADD COLUMN assignee_account_id TEXT",
+    "ALTER TABLE worklogs ADD COLUMN assignee_display_name TEXT",
+]
+
+
 def init_db(db_path: str) -> None:
     with get_conn(db_path) as conn:
         conn.executescript(_SCHEMA)
+    with get_conn(db_path) as conn:
+        for sql in _MIGRATIONS:
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
 
 def upsert_worklog(conn: sqlite3.Connection, wl: WorklogEntry, synced_at: str) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO worklogs
            (worklog_id, issue_key, project_key, issue_summary,
-            author_account_id, author_display_name, time_spent_seconds, started, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            author_account_id, author_display_name, time_spent_seconds, started, synced_at,
+            assignee_account_id, assignee_display_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             wl.worklog_id, wl.issue_key, wl.project_key, wl.issue_summary,
             wl.author_account_id, wl.author_display_name, wl.time_spent_seconds,
             wl.started, synced_at,
+            wl.assignee_account_id, wl.assignee_display_name,
         ),
     )
 
@@ -122,7 +138,7 @@ def get_issues_with_cost(conn: sqlite3.Connection) -> list[sqlite3.Row]:
                ROUND(SUM(w.time_spent_seconds / 3600.0 * COALESCE(r.rate_eur, 0)), 2) AS cost_eur,
                MAX(CASE WHEN r.rate_eur IS NULL THEN 1 ELSE 0 END) AS has_missing_rate
            FROM worklogs w
-           LEFT JOIN hourly_rates r ON w.author_account_id = r.account_id
+           LEFT JOIN hourly_rates r ON w.assignee_account_id = r.account_id
            GROUP BY w.issue_key
            ORDER BY cost_eur DESC"""
     ).fetchall()
@@ -131,15 +147,15 @@ def get_issues_with_cost(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 def get_assignees_with_cost(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(  # type: ignore[return-value]
         """SELECT
-               r.account_id,
-               r.display_name,
+               COALESCE(w.assignee_account_id, '') AS account_id,
+               COALESCE(w.assignee_display_name, 'Unassigned') AS display_name,
                r.rate_eur,
                COUNT(DISTINCT w.issue_key) AS issue_count,
                ROUND(SUM(w.time_spent_seconds) / 3600.0, 2) AS hours,
                ROUND(SUM(w.time_spent_seconds / 3600.0 * COALESCE(r.rate_eur, 0)), 2) AS cost_eur
-           FROM hourly_rates r
-           LEFT JOIN worklogs w ON r.account_id = w.author_account_id
-           GROUP BY r.account_id
+           FROM worklogs w
+           LEFT JOIN hourly_rates r ON w.assignee_account_id = r.account_id
+           GROUP BY COALESCE(w.assignee_account_id, '')
            ORDER BY cost_eur DESC"""
     ).fetchall()
 

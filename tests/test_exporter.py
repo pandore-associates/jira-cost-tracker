@@ -31,6 +31,8 @@ def seeded_db(settings: Settings) -> None:
                 author_display_name="Alice",
                 time_spent_seconds=3600,
                 started="2026-05-11T09:00:00.000+0000",
+                assignee_account_id="acc1",
+                assignee_display_name="Alice",
             ),
             "2026-05-11T10:00:00",
         )

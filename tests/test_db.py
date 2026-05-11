@@ -33,6 +33,8 @@ def _wl(**kwargs: object) -> WorklogEntry:
         "author_display_name": "Alice",
         "time_spent_seconds": 3600,
         "started": "2026-05-11T09:00:00.000+0000",
+        "assignee_account_id": "acc1",
+        "assignee_display_name": "Alice",
     }
     defaults.update(kwargs)
     return WorklogEntry(**defaults)  # type: ignore[arg-type]
@@ -121,12 +123,38 @@ def test_get_assignees_with_cost(db_path: str) -> None:
     with get_conn(db_path) as conn:
         upsert_author(conn, "acc1", "Alice", "2026-05-11T10:00:00")
         set_rate(conn, "acc1", 100.0, "2026-05-11T10:00:00")
-        upsert_worklog(conn, _wl(time_spent_seconds=7200), "2026-05-11T10:00:00")
+        upsert_worklog(
+            conn,
+            _wl(time_spent_seconds=7200, assignee_account_id="acc1", assignee_display_name="Alice"),
+            "2026-05-11T10:00:00",
+        )
         rows = get_assignees_with_cost(conn)
     assert len(rows) == 1
     assert rows[0]["display_name"] == "Alice"
     assert rows[0]["hours"] == 2.0
     assert rows[0]["cost_eur"] == 200.0
+
+
+def test_get_assignees_groups_by_assignee_not_author(db_path: str) -> None:
+    with get_conn(db_path) as conn:
+        upsert_author(conn, "bob", "Bob", "2026-05-11T10:00:00")
+        set_rate(conn, "bob", 50.0, "2026-05-11T10:00:00")
+        # Alice logged time on an issue assigned to Bob
+        upsert_worklog(
+            conn,
+            _wl(
+                author_account_id="acc1",
+                author_display_name="Alice",
+                assignee_account_id="bob",
+                assignee_display_name="Bob",
+                time_spent_seconds=3600,
+            ),
+            "2026-05-11T10:00:00",
+        )
+        rows = get_assignees_with_cost(conn)
+    assert len(rows) == 1
+    assert rows[0]["display_name"] == "Bob"
+    assert rows[0]["cost_eur"] == 50.0
 
 
 def test_set_rate_updates_value(db_path: str) -> None:
