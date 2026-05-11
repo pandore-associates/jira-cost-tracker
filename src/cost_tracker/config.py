@@ -32,7 +32,7 @@ class Settings(BaseSettings):
         cls,
         settings_cls: type[BaseSettings],
         init_settings: InitSettingsSource,
-        env_settings: EnvSettingsSource,
+        env_settings: EnvSettingsSource,  # noqa: ARG002
         dotenv_settings: Any,
         file_secret_settings: Any,
     ) -> tuple[Any, ...]:
