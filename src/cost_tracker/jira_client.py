@@ -70,6 +70,12 @@ class JiraClient:
             timeout=30,
         )
         resp.raise_for_status()
+        data = resp.json()
+        worklogs_raw: list[dict[str, Any]] = data.get("worklogs", [])
+        total: int = data.get("total", 0)
+        if not hasattr(self, "_first_worklog_logged"):
+            self._first_worklog_logged = True  # type: ignore[attr-defined]
+            logger.info(f"First worklog response ({issue_key}): total={total}, returned={len(worklogs_raw)}")
         return [
             WorklogEntry(
                 worklog_id=str(w["id"]),
@@ -81,5 +87,5 @@ class JiraClient:
                 time_spent_seconds=int(w["timeSpentSeconds"]),
                 started=w["started"],
             )
-            for w in resp.json().get("worklogs", [])
+            for w in worklogs_raw
         ]
