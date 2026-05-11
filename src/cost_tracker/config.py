@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     plan_man_days: float = 107.0
     plan_budget_eur: float = 137470.0
     plan_contingency: float = 0.30
+    plan_start: str = "2026-04-13"
+    plan_end: str = "2026-07-10"
 
     @classmethod
     def settings_customise_sources(

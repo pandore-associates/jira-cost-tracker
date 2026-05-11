@@ -16,17 +16,12 @@ def _merge_cumulative(
     daily_jira: list[Any],
     daily_overhead: list[Any],
     key: str,
+    start: date,
+    end: date,
 ) -> tuple[list[str], list[float], list[float]]:
-    """Merge daily rows, fill date gaps, return (dates, cum_tasks, cum_tasks_plus_overhead)."""
+    """Merge daily rows over [start, end], return (dates, cum_tasks, cum_tasks_plus_overhead)."""
     jira_by_date: dict[str, float] = {str(r["day"]): float(r[key]) for r in daily_jira}
     oh_by_date: dict[str, float] = {str(r["day"]): float(r[key]) for r in daily_overhead}
-
-    all_dates = sorted(set(jira_by_date) | set(oh_by_date))
-    if not all_dates:
-        return [], [], []
-
-    start = date.fromisoformat(all_dates[0])
-    end = date.today()
 
     dates: list[str] = []
     cum_tasks: list[float] = []
@@ -114,9 +109,13 @@ class OverviewTab(Widget):
         chart_w = max(10, w // 2 - 2)
         chart_h = max(5, h - 2)
         contingency_pct = self._settings.plan_contingency * 100
+        plan_start = date.fromisoformat(self._settings.plan_start)
+        plan_end = date.fromisoformat(self._settings.plan_end)
 
         # --- Budget chart (% of plan) ---
-        dates, cum_cost_tasks, cum_cost_total = _merge_cumulative(jira_rows, overhead_rows, "cost")
+        dates, cum_cost_tasks, cum_cost_total = _merge_cumulative(
+            jira_rows, overhead_rows, "cost", plan_start, plan_end
+        )
         budget_base = self._settings.plan_budget_eur or 1.0
         pct_cost_tasks = [round(v / budget_base * 100, 2) for v in cum_cost_tasks]
         pct_cost_total = [round(v / budget_base * 100, 2) for v in cum_cost_total]
@@ -129,7 +128,9 @@ class OverviewTab(Widget):
         )
 
         # --- Man-days chart (% of plan) ---
-        dates2, cum_h_tasks, cum_h_total = _merge_cumulative(jira_rows, overhead_rows, "hours")
+        dates2, cum_h_tasks, cum_h_total = _merge_cumulative(
+            jira_rows, overhead_rows, "hours", plan_start, plan_end
+        )
         days_base = self._settings.plan_man_days or 1.0
         pct_days_tasks = [round(h / 8 / days_base * 100, 2) for h in cum_h_tasks]
         pct_days_total = [round(h / 8 / days_base * 100, 2) for h in cum_h_total]
