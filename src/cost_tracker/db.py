@@ -42,7 +42,23 @@ CREATE TABLE IF NOT EXISTS projects (
     project_name TEXT NOT NULL,
     enabled      INTEGER NOT NULL DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS overhead_entries (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id  TEXT NOT NULL,
+    date        TEXT NOT NULL,
+    category    TEXT NOT NULL,
+    hours       REAL NOT NULL DEFAULT 0.0,
+    UNIQUE(account_id, date, category)
+);
 """
+
+OVERHEAD_CATEGORIES: list[str] = [
+    "Communication / Sync",
+    "Backlog Grooming",
+    "External Interruptions",
+    "Demo / Deliverable Prep",
+]
 
 
 @contextmanager
@@ -145,22 +161,73 @@ def get_issues_with_cost(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 
 
 def get_assignees_with_cost(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    # Cost is ceiled to the nearest half man-day (4 h) per assignee before multiplying by rate.
-    # half_days = integer ceiling of (total_seconds / 14400)  (14400 = 4 * 3600)
-    # man_days  = half_days * 0.5
-    # cost      = half_days * rate_eur * 4
+    # Jira seconds + overhead seconds are summed per assignee, then ceiled to the
+    # nearest half man-day (4 h = 14400 s) before multiplying by rate.
     return conn.execute(  # type: ignore[return-value]
-        """SELECT
-               COALESCE(w.assignee_account_id, '') AS account_id,
-               COALESCE(w.assignee_display_name, 'Unassigned') AS display_name,
+        """WITH jira AS (
+               SELECT
+                   COALESCE(assignee_account_id, '') AS account_id,
+                   COALESCE(assignee_display_name, 'Unassigned') AS display_name,
+                   COUNT(DISTINCT issue_key) AS issue_count,
+                   SUM(time_spent_seconds) AS jira_seconds
+               FROM worklogs
+               GROUP BY COALESCE(assignee_account_id, '')
+           ),
+           overhead AS (
+               SELECT account_id,
+                      CAST(ROUND(SUM(hours) * 3600) AS INTEGER) AS overhead_seconds
+               FROM overhead_entries
+               GROUP BY account_id
+           )
+           SELECT
+               j.account_id,
+               j.display_name,
                r.rate_eur,
-               COUNT(DISTINCT w.issue_key) AS issue_count,
-               (SUM(w.time_spent_seconds) + 14399) / 14400 * 0.5 AS man_days,
-               ROUND((SUM(w.time_spent_seconds) + 14399) / 14400 * COALESCE(r.rate_eur, 0) * 4, 2) AS cost_eur
-           FROM worklogs w
-           LEFT JOIN hourly_rates r ON w.assignee_account_id = r.account_id
-           GROUP BY COALESCE(w.assignee_account_id, '')
+               j.issue_count,
+               ROUND(j.jira_seconds / 3600.0, 2) AS jira_hours,
+               ROUND(COALESCE(o.overhead_seconds, 0) / 3600.0, 2) AS overhead_hours,
+               (j.jira_seconds + COALESCE(o.overhead_seconds, 0) + 14399) / 14400 * 0.5 AS man_days,
+               ROUND(
+                   (j.jira_seconds + COALESCE(o.overhead_seconds, 0) + 14399) / 14400
+                   * COALESCE(r.rate_eur, 0) * 4, 2
+               ) AS cost_eur
+           FROM jira j
+           LEFT JOIN overhead o ON j.account_id = o.account_id
+           LEFT JOIN hourly_rates r ON j.account_id = r.account_id
            ORDER BY cost_eur DESC"""
+    ).fetchall()
+
+
+def upsert_overhead(
+    conn: sqlite3.Connection, account_id: str, date: str, category: str, hours: float
+) -> None:
+    conn.execute(
+        """INSERT INTO overhead_entries (account_id, date, category, hours)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(account_id, date, category) DO UPDATE SET hours=excluded.hours""",
+        (account_id, date, category, hours),
+    )
+
+
+def get_overhead_for_date(conn: sqlite3.Connection, date: str) -> list[sqlite3.Row]:
+    return conn.execute(  # type: ignore[return-value]
+        """SELECT o.account_id, h.display_name, o.category, o.hours
+           FROM overhead_entries o
+           JOIN hourly_rates h ON o.account_id = h.account_id
+           WHERE o.date = ?
+           ORDER BY h.display_name, o.category""",
+        (date,),
+    ).fetchall()
+
+
+def get_overhead_breakdown(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """All-time overhead hours per person per category."""
+    return conn.execute(  # type: ignore[return-value]
+        """SELECT o.account_id, h.display_name, o.category, SUM(o.hours) AS total_hours
+           FROM overhead_entries o
+           JOIN hourly_rates h ON o.account_id = h.account_id
+           GROUP BY o.account_id, o.category
+           ORDER BY h.display_name, o.category"""
     ).fetchall()
 
 

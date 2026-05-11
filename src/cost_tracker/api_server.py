@@ -4,7 +4,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 from cost_tracker.config import Settings
-from cost_tracker.db import get_assignees_with_cost, get_conn, get_issues_with_cost
+from cost_tracker.db import get_assignees_with_cost, get_conn, get_issues_with_cost, get_overhead_breakdown
 
 
 def _make_handler(settings: Settings) -> type[BaseHTTPRequestHandler]:
@@ -17,6 +17,8 @@ def _make_handler(settings: Settings) -> type[BaseHTTPRequestHandler]:
                 data = self._issues()
             elif path == "/worklogs":
                 data = self._worklogs()
+            elif path == "/overhead":
+                data = self._overhead()
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -66,6 +68,18 @@ def _make_handler(settings: Settings) -> type[BaseHTTPRequestHandler]:
                        FROM worklogs ORDER BY started DESC"""
                 ).fetchall()
             return [{k: row[k] for k in row.keys()} for row in rows]  # type: ignore[union-attr]
+
+        def _overhead(self) -> list[dict[str, Any]]:
+            with get_conn(settings.db_path) as conn:
+                rows = get_overhead_breakdown(conn)
+            return [
+                {
+                    "display_name": row["display_name"],
+                    "category": row["category"],
+                    "total_hours": row["total_hours"],
+                }
+                for row in rows
+            ]
 
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
             pass  # suppress per-request access logs

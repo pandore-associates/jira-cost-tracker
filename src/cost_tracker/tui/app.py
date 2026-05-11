@@ -6,6 +6,7 @@ from cost_tracker.sync import run_sync
 from cost_tracker.tui.widgets.assignees_tab import AssigneesTab
 from cost_tracker.tui.widgets.issues_tab import IssuesTab
 from cost_tracker.tui.widgets.logs_tab import LogsTab
+from cost_tracker.tui.widgets.overhead_tab import OverheadTab
 from cost_tracker.tui.widgets.rates_tab import RatesTab
 
 
@@ -13,8 +14,10 @@ class CostTrackerApp(App[None]):
     TITLE = "Jira Cost Tracker"
     CSS = """
     .total-row { color: $success; text-style: bold; margin-top: 1; }
-    IssuesTab, AssigneesTab, RatesTab, LogsTab { height: 1fr; }
+    IssuesTab, AssigneesTab, RatesTab, LogsTab, OverheadTab { height: 1fr; }
     DataTable { height: 1fr; }
+    #overhead-date { height: 1; }
+    #overhead-summary { height: auto; }
     """
     BINDINGS = [
         ("s", "sync_now", "Sync Now"),
@@ -33,6 +36,8 @@ class CostTrackerApp(App[None]):
                 yield IssuesTab(self._settings)
             with TabPane("By Assignee", id="assignees"):
                 yield AssigneesTab(self._settings)
+            with TabPane("Overhead", id="overhead"):
+                yield OverheadTab(self._settings)
             with TabPane("Rates", id="rates"):
                 yield RatesTab(self._settings)
             with TabPane("Sync Log", id="logs"):
@@ -46,6 +51,7 @@ class CostTrackerApp(App[None]):
         for tab in [
             *self.query(IssuesTab),
             *self.query(AssigneesTab),
+            *self.query(OverheadTab),
             *self.query(RatesTab),
             *self.query(LogsTab),
         ]:

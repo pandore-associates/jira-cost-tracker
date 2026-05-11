@@ -4,6 +4,8 @@ from cost_tracker.db import (
     finish_sync_run,
     get_assignees_with_cost,
     get_issues_with_cost,
+    get_overhead_breakdown,
+    get_overhead_for_date,
     get_rates,
     get_sync_runs,
     get_conn,
@@ -11,6 +13,7 @@ from cost_tracker.db import (
     set_rate,
     start_sync_run,
     upsert_author,
+    upsert_overhead,
     upsert_worklog,
 )
 from cost_tracker.jira_client import WorklogEntry
@@ -192,6 +195,59 @@ def test_set_rate_updates_value(db_path: str) -> None:
         set_rate(conn, "acc1", 150.0, "2026-05-11T10:00:00")
         row = conn.execute("SELECT rate_eur FROM hourly_rates WHERE account_id='acc1'").fetchone()
     assert row["rate_eur"] == 150.0
+
+
+def test_overhead_stacks_with_jira_for_man_days(db_path: str) -> None:
+    with get_conn(db_path) as conn:
+        upsert_author(conn, "acc1", "Alice", "2026-05-11T10:00:00")
+        set_rate(conn, "acc1", 100.0, "2026-05-11T10:00:00")
+        # 3 h Jira + 2 h overhead = 5 h → ceil(5/4) = 2 half-days = 1.0 day
+        upsert_worklog(
+            conn,
+            _wl(time_spent_seconds=10800, assignee_account_id="acc1", assignee_display_name="Alice"),
+            "2026-05-11T10:00:00",
+        )
+        upsert_overhead(conn, "acc1", "2026-05-11", "Communication / Sync", 2.0)
+        rows = get_assignees_with_cost(conn)
+    assert rows[0]["jira_hours"] == 3.0
+    assert rows[0]["overhead_hours"] == 2.0
+    assert rows[0]["man_days"] == 1.0   # 5 h → 1 full day
+    assert rows[0]["cost_eur"] == 800.0
+
+
+def test_get_overhead_for_date(db_path: str) -> None:
+    with get_conn(db_path) as conn:
+        upsert_author(conn, "acc1", "Alice", "2026-05-11T10:00:00")
+        upsert_overhead(conn, "acc1", "2026-05-11", "Communication / Sync", 1.5)
+        upsert_overhead(conn, "acc1", "2026-05-11", "Backlog Grooming", 0.5)
+        upsert_overhead(conn, "acc1", "2026-05-12", "Communication / Sync", 2.0)
+        rows = get_overhead_for_date(conn, "2026-05-11")
+    assert len(rows) == 2
+    cats = {row["category"]: row["hours"] for row in rows}
+    assert cats["Communication / Sync"] == 1.5
+    assert cats["Backlog Grooming"] == 0.5
+
+
+def test_upsert_overhead_replaces_on_conflict(db_path: str) -> None:
+    with get_conn(db_path) as conn:
+        upsert_author(conn, "acc1", "Alice", "2026-05-11T10:00:00")
+        upsert_overhead(conn, "acc1", "2026-05-11", "Communication / Sync", 1.0)
+        upsert_overhead(conn, "acc1", "2026-05-11", "Communication / Sync", 2.5)
+        rows = get_overhead_for_date(conn, "2026-05-11")
+    assert len(rows) == 1
+    assert rows[0]["hours"] == 2.5
+
+
+def test_get_overhead_breakdown(db_path: str) -> None:
+    with get_conn(db_path) as conn:
+        upsert_author(conn, "acc1", "Alice", "2026-05-11T10:00:00")
+        upsert_overhead(conn, "acc1", "2026-05-11", "Communication / Sync", 1.0)
+        upsert_overhead(conn, "acc1", "2026-05-12", "Communication / Sync", 2.0)
+        upsert_overhead(conn, "acc1", "2026-05-11", "Backlog Grooming", 0.5)
+        rows = get_overhead_breakdown(conn)
+    totals = {row["category"]: row["total_hours"] for row in rows}
+    assert totals["Communication / Sync"] == 3.0
+    assert totals["Backlog Grooming"] == 0.5
 
 
 def test_get_sync_runs_returns_most_recent_first(db_path: str) -> None:

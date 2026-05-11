@@ -6,7 +6,7 @@ import pytest
 
 from cost_tracker.api_server import start_server
 from cost_tracker.config import Settings
-from cost_tracker.db import get_conn, init_db, set_rate, upsert_author, upsert_worklog
+from cost_tracker.db import get_conn, init_db, set_rate, upsert_author, upsert_overhead, upsert_worklog
 from cost_tracker.jira_client import WorklogEntry
 
 
@@ -79,6 +79,16 @@ def test_worklogs_returns_data(server: object, api_settings: Settings) -> None:
     assert len(data) == 1
     assert data[0]["worklog_id"] == "wl1"
     assert data[0]["assignee_display_name"] == "Alice"
+
+
+def test_overhead_returns_data(server: object, api_settings: Settings) -> None:
+    with get_conn(api_settings.db_path) as conn:
+        upsert_overhead(conn, "acc1", "2026-05-11", "Communication / Sync", 2.0)
+    data = _get(api_settings.api_port, "/overhead")
+    assert len(data) == 1
+    assert data[0]["display_name"] == "Alice"
+    assert data[0]["category"] == "Communication / Sync"
+    assert data[0]["total_hours"] == 2.0
 
 
 def test_unknown_path_returns_404(server: object, api_settings: Settings) -> None:
