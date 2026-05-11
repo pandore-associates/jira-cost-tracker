@@ -231,6 +231,34 @@ def get_overhead_breakdown(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def get_daily_jira_data(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Daily Jira hours and cost grouped by date, ordered chronologically."""
+    return conn.execute(  # type: ignore[return-value]
+        """SELECT
+               SUBSTR(w.started, 1, 10) AS day,
+               ROUND(SUM(w.time_spent_seconds / 3600.0), 4) AS hours,
+               ROUND(SUM(w.time_spent_seconds / 3600.0 * COALESCE(r.rate_eur, 0)), 2) AS cost
+           FROM worklogs w
+           LEFT JOIN hourly_rates r ON w.assignee_account_id = r.account_id
+           GROUP BY SUBSTR(w.started, 1, 10)
+           ORDER BY day"""
+    ).fetchall()
+
+
+def get_daily_overhead_data(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Daily overhead hours and cost grouped by date, ordered chronologically."""
+    return conn.execute(  # type: ignore[return-value]
+        """SELECT
+               o.date AS day,
+               ROUND(SUM(o.hours), 4) AS hours,
+               ROUND(SUM(o.hours * COALESCE(r.rate_eur, 0)), 2) AS cost
+           FROM overhead_entries o
+           JOIN hourly_rates r ON o.account_id = r.account_id
+           GROUP BY o.date
+           ORDER BY day"""
+    ).fetchall()
+
+
 def get_sync_runs(conn: sqlite3.Connection, limit: int = 50) -> list[sqlite3.Row]:
     return conn.execute(  # type: ignore[return-value]
         "SELECT * FROM sync_runs ORDER BY id DESC LIMIT ?", (limit,)

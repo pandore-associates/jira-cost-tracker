@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     db_path: str = "./cost_tracker.db"
     export_dir: str = "./exports"
     api_port: int = 8765
+    plan_man_days: float = 107.0
+    plan_budget_eur: float = 137470.0
+    plan_contingency: float = 0.30
 
     @classmethod
     def settings_customise_sources(

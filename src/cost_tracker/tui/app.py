@@ -7,6 +7,7 @@ from cost_tracker.tui.widgets.assignees_tab import AssigneesTab
 from cost_tracker.tui.widgets.issues_tab import IssuesTab
 from cost_tracker.tui.widgets.logs_tab import LogsTab
 from cost_tracker.tui.widgets.overhead_tab import OverheadTab
+from cost_tracker.tui.widgets.overview_tab import OverviewTab
 from cost_tracker.tui.widgets.rates_tab import RatesTab
 
 
@@ -14,10 +15,12 @@ class CostTrackerApp(App[None]):
     TITLE = "Jira Cost Tracker"
     CSS = """
     .total-row { color: $success; text-style: bold; margin-top: 1; }
-    IssuesTab, AssigneesTab, RatesTab, LogsTab, OverheadTab { height: 1fr; }
+    IssuesTab, AssigneesTab, RatesTab, LogsTab, OverheadTab, OverviewTab { height: 1fr; }
     DataTable { height: 1fr; }
     #overhead-date { height: 1; }
     #overhead-summary { height: auto; }
+    OverviewTab > Horizontal { height: 1fr; }
+    #budget-chart, #mandays-chart { width: 1fr; height: 1fr; overflow: hidden hidden; }
     """
     BINDINGS = [
         ("s", "sync_now", "Sync Now"),
@@ -32,6 +35,8 @@ class CostTrackerApp(App[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         with TabbedContent():
+            with TabPane("Overview", id="overview"):
+                yield OverviewTab(self._settings)
             with TabPane("By Issue", id="issues"):
                 yield IssuesTab(self._settings)
             with TabPane("Overhead", id="overhead"):
@@ -49,6 +54,7 @@ class CostTrackerApp(App[None]):
 
     def _refresh_all(self) -> None:
         for tab in [
+            *self.query(OverviewTab),
             *self.query(IssuesTab),
             *self.query(AssigneesTab),
             *self.query(OverheadTab),
