@@ -2,14 +2,20 @@ from apscheduler.schedulers.blocking import BlockingScheduler  # type: ignore[im
 from apscheduler.triggers.cron import CronTrigger  # type: ignore[import]
 from loguru import logger
 
+from cost_tracker.api_server import start_server
 from cost_tracker.config import Settings
 from cost_tracker.db import init_db
 from cost_tracker.sync import run_sync
 
 
 def run_daemon(settings: Settings) -> None:
-    """Start the blocking APScheduler daemon."""
+    """Start the blocking APScheduler daemon with a JSON API server."""
     init_db(settings.db_path)
+    start_server(settings)
+    logger.info(
+        f"API server listening on http://localhost:{settings.api_port} "
+        f"— endpoints: /assignees  /issues  /worklogs"
+    )
     scheduler = BlockingScheduler()
     scheduler.add_job(
         run_sync,

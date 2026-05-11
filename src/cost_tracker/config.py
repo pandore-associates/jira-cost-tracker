@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     jira_projects: list[str]
     db_path: str = "./cost_tracker.db"
     export_dir: str = "./exports"
+    api_port: int = 8765
 
     @classmethod
     def settings_customise_sources(
