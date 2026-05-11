@@ -29,25 +29,29 @@ class JiraClient:
 
     def _get_all_issues(self, project_key: str) -> list[dict[str, Any]]:
         issues: list[dict[str, Any]] = []
-        start_at = 0
+        next_page_token: str | None = None
         while True:
+            body: dict[str, Any] = {
+                "jql": f"project={project_key}",
+                "fields": ["summary"],
+                "maxResults": 100,
+            }
+            if next_page_token is not None:
+                body["nextPageToken"] = next_page_token
             resp = httpx.post(
-                f"{self._base_url}/rest/api/3/search",
+                f"{self._base_url}/rest/api/3/search/jql",
                 auth=self._auth,
-                json={
-                    "jql": f"project={project_key}",
-                    "fields": ["summary"],
-                    "startAt": start_at,
-                    "maxResults": 100,
-                },
+                json=body,
                 timeout=30,
             )
             resp.raise_for_status()
             data: dict[str, Any] = resp.json()
             issues.extend(data["issues"])
-            if len(issues) >= int(data["total"]):
+            if data.get("isLast", True):
                 break
-            start_at += len(data["issues"])
+            next_page_token = data.get("nextPageToken")
+            if next_page_token is None:
+                break
         return issues
 
     def _get_issue_worklogs(self, issue: dict[str, Any]) -> list[WorklogEntry]:

@@ -10,14 +10,17 @@ def client() -> JiraClient:
     return JiraClient("https://example.atlassian.net", "user@example.com", "token")
 
 
+_SEARCH_URL = "https://example.atlassian.net/rest/api/3/search/jql"
+
+
 @respx.mock
 def test_get_worklogs_returns_entries(client: JiraClient) -> None:
-    respx.post("https://example.atlassian.net/rest/api/3/search").mock(
+    respx.post(_SEARCH_URL).mock(
         return_value=httpx.Response(
             200,
             json={
                 "issues": [{"key": "CSP-1", "fields": {"summary": "Test issue"}}],
-                "total": 1,
+                "isLast": True,
             },
         )
     )
@@ -49,7 +52,7 @@ def test_get_worklogs_returns_entries(client: JiraClient) -> None:
 
 @respx.mock
 def test_get_worklogs_raises_on_auth_error(client: JiraClient) -> None:
-    respx.post("https://example.atlassian.net/rest/api/3/search").mock(
+    respx.post(_SEARCH_URL).mock(
         return_value=httpx.Response(401, json={"message": "Unauthorized"})
     )
     with pytest.raises(httpx.HTTPStatusError):
@@ -58,20 +61,21 @@ def test_get_worklogs_raises_on_auth_error(client: JiraClient) -> None:
 
 @respx.mock
 def test_get_worklogs_paginates(client: JiraClient) -> None:
-    respx.post("https://example.atlassian.net/rest/api/3/search").mock(
+    respx.post(_SEARCH_URL).mock(
         side_effect=[
             httpx.Response(
                 200,
                 json={
                     "issues": [{"key": "CSP-1", "fields": {"summary": "Issue 1"}}],
-                    "total": 2,
+                    "isLast": False,
+                    "nextPageToken": "token-page-2",
                 },
             ),
             httpx.Response(
                 200,
                 json={
                     "issues": [{"key": "CSP-2", "fields": {"summary": "Issue 2"}}],
-                    "total": 2,
+                    "isLast": True,
                 },
             ),
         ]
@@ -89,10 +93,10 @@ def test_get_worklogs_paginates(client: JiraClient) -> None:
 
 @respx.mock
 def test_issue_with_no_worklogs(client: JiraClient) -> None:
-    respx.post("https://example.atlassian.net/rest/api/3/search").mock(
+    respx.post(_SEARCH_URL).mock(
         return_value=httpx.Response(
             200,
-            json={"issues": [{"key": "CSP-1", "fields": {"summary": "No work"}}], "total": 1},
+            json={"issues": [{"key": "CSP-1", "fields": {"summary": "No work"}}], "isLast": True},
         )
     )
     respx.get("https://example.atlassian.net/rest/api/3/issue/CSP-1/worklog").mock(
