@@ -96,27 +96,43 @@ class OverheadTab(Widget):
                 })
                 t.add_row(person["display_name"], cat, f"{hours:.1f} h")
 
-        # Global Tasks / Overhead % across all profiles.
-        # Tasks  = Jira hours (all assignees) + manual "Tasks" entries
-        # Overhead = manual "Overhead" entries
-        cat_totals: dict[str, float] = {}
+        # Summary: per assignee + team total
+        # Tasks = Jira hours  |  Overhead = sum of all 4 categories
+        overhead_by_person: dict[str, float] = {}
         for row in breakdown:
-            cat = str(row["category"])
-            cat_totals[cat] = cat_totals.get(cat, 0.0) + float(row["total_hours"])
+            pid = str(row["account_id"])
+            overhead_by_person[pid] = overhead_by_person.get(pid, 0.0) + float(row["total_hours"])
 
-        total_jira = sum(jira_hours_by_id.values())
-        total_tasks = total_jira + cat_totals.get("Tasks", 0.0)
-        total_overhead = cat_totals.get("Overhead", 0.0)
-        grand_total = total_tasks + total_overhead
+        lines: list[str] = []
+        team_tasks = 0.0
+        team_overhead = 0.0
 
-        if grand_total > 0:
-            tp = int(round(total_tasks / grand_total * 100))
-            op = int(round(total_overhead / grand_total * 100))
-            summary = f"All profiles — Tasks {tp}%   Overhead {op}%"
-        else:
-            summary = ""
+        for person in people:
+            pid = str(person["account_id"])
+            name = str(person["display_name"])
+            tasks_h = jira_hours_by_id.get(pid, 0.0)
+            overhead_h = overhead_by_person.get(pid, 0.0)
+            total_h = tasks_h + overhead_h
+            if total_h == 0:
+                continue
+            team_tasks += tasks_h
+            team_overhead += overhead_h
+            tp = int(round(tasks_h / total_h * 100))
+            op = int(round(overhead_h / total_h * 100))
+            lines.append(
+                f"{name}  —  Tasks {tasks_h:.1f} h ({tp}%)   Overhead {overhead_h:.1f} h ({op}%)"
+            )
 
-        self.query_one("#overhead-summary", Static).update(summary)
+        team_total = team_tasks + team_overhead
+        if team_total > 0:
+            ttp = int(round(team_tasks / team_total * 100))
+            top = int(round(team_overhead / team_total * 100))
+            lines.append(
+                f"{'─' * 60}\n"
+                f"Team  —  Tasks {team_tasks:.1f} h ({ttp}%)   Overhead {team_overhead:.1f} h ({top}%)"
+            )
+
+        self.query_one("#overhead-summary", Static).update("\n".join(lines))
 
     def on_key(self, event: object) -> None:
         from textual.events import Key
