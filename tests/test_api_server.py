@@ -83,11 +83,11 @@ def test_worklogs_returns_data(server: object, api_settings: Settings) -> None:
 
 def test_overhead_returns_data(server: object, api_settings: Settings) -> None:
     with get_conn(api_settings.db_path) as conn:
-        upsert_overhead(conn, "acc1", "2026-05-11", "Communication / Sync", 2.0)
+        upsert_overhead(conn, "acc1", "2026-05-11", "Overhead", 2.0)
     data = _get(api_settings.api_port, "/overhead")
     assert len(data) == 1
     assert data[0]["display_name"] == "Alice"
-    assert data[0]["category"] == "Communication / Sync"
+    assert data[0]["category"] == "Overhead"
     assert data[0]["total_hours"] == 2.0
 
 

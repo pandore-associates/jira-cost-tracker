@@ -53,12 +53,7 @@ CREATE TABLE IF NOT EXISTS overhead_entries (
 );
 """
 
-OVERHEAD_CATEGORIES: list[str] = [
-    "Communication / Sync",
-    "Backlog Grooming",
-    "External Interruptions",
-    "Demo / Deliverable Prep",
-]
+OVERHEAD_CATEGORIES: list[str] = ["Tasks", "Overhead"]
 
 
 @contextmanager

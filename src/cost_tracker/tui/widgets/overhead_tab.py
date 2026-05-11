@@ -96,36 +96,27 @@ class OverheadTab(Widget):
                 })
                 t.add_row(person["display_name"], cat, f"{hours:.1f} h")
 
-        # Build all-time % summary per person
-        overhead_by_person: dict[str, dict[str, float]] = {}
+        # Global Tasks / Overhead % across all profiles.
+        # Tasks  = Jira hours (all assignees) + manual "Tasks" entries
+        # Overhead = manual "Overhead" entries
+        cat_totals: dict[str, float] = {}
         for row in breakdown:
-            pid = str(row["account_id"])
-            overhead_by_person.setdefault(pid, {})[str(row["category"])] = float(row["total_hours"])
+            cat = str(row["category"])
+            cat_totals[cat] = cat_totals.get(cat, 0.0) + float(row["total_hours"])
 
-        lines: list[str] = []
-        for person in people:
-            pid = str(person["account_id"])
-            name = str(person["display_name"])
-            jira_h = jira_hours_by_id.get(pid, 0.0)
-            overhead_h = sum(overhead_by_person.get(pid, {}).values())
-            total_h = jira_h + overhead_h
-            if total_h == 0:
-                continue
+        total_jira = sum(jira_hours_by_id.values())
+        total_tasks = total_jira + cat_totals.get("Tasks", 0.0)
+        total_overhead = cat_totals.get("Overhead", 0.0)
+        grand_total = total_tasks + total_overhead
 
-            def pct(h: float) -> int:
-                return int(round(h / total_h * 100))
+        if grand_total > 0:
+            tp = int(round(total_tasks / grand_total * 100))
+            op = int(round(total_overhead / grand_total * 100))
+            summary = f"All profiles — Tasks {tp}%   Overhead {op}%"
+        else:
+            summary = ""
 
-            parts = [f"Jira {pct(jira_h)}%"]
-            for cat in OVERHEAD_CATEGORIES:
-                cat_h = overhead_by_person.get(pid, {}).get(cat, 0.0)
-                if cat_h:
-                    short = cat.split("/")[0].strip().split(" ")[0]
-                    parts.append(f"{short} {pct(cat_h)}%")
-            lines.append(f"{name}: " + "  ".join(parts))
-
-        self.query_one("#overhead-summary", Static).update(
-            "\n".join(lines) if lines else ""
-        )
+        self.query_one("#overhead-summary", Static).update(summary)
 
     def on_key(self, event: object) -> None:
         from textual.events import Key
