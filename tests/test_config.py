@@ -1,4 +1,3 @@
-import pytest
 from cost_tracker.config import Settings
 
 
