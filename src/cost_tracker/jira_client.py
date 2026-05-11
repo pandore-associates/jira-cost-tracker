@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from loguru import logger
 
 
 @dataclass
@@ -22,9 +23,14 @@ class JiraClient:
         self._auth = httpx.BasicAuth(email, api_token)
 
     def get_worklogs_for_project(self, project_key: str) -> list[WorklogEntry]:
+        issues = self._get_all_issues(project_key)
+        logger.info(f"Found {len(issues)} issues in {project_key}")
         result: list[WorklogEntry] = []
-        for issue in self._get_all_issues(project_key):
-            result.extend(self._get_issue_worklogs(issue))
+        for issue in issues:
+            wls = self._get_issue_worklogs(issue)
+            if wls:
+                logger.debug(f"  {issue['key']}: {len(wls)} worklog(s)")
+            result.extend(wls)
         return result
 
     def _get_all_issues(self, project_key: str) -> list[dict[str, Any]]:
