@@ -32,7 +32,7 @@ class JiraClient:
         start_at = 0
         while True:
             resp = httpx.post(
-                f"{self._base_url}/rest/api/3/issue/search",
+                f"{self._base_url}/rest/api/3/search",
                 auth=self._auth,
                 json={
                     "jql": f"project={project_key}",
