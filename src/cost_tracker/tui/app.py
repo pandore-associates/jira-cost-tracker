@@ -13,6 +13,8 @@ class CostTrackerApp(App[None]):
     TITLE = "Jira Cost Tracker"
     CSS = """
     .total-row { color: $success; text-style: bold; margin-top: 1; }
+    IssuesTab, AssigneesTab, RatesTab, LogsTab { height: 1fr; }
+    DataTable { height: 1fr; }
     """
     BINDINGS = [
         ("s", "sync_now", "Sync Now"),
