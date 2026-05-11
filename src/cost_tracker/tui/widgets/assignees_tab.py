@@ -19,7 +19,7 @@ class AssigneesTab(Widget):
 
     def on_mount(self) -> None:
         t = self.query_one("#assignees-table", DataTable)
-        t.add_columns("Assignee", "Issues", "Hours", "Cost (€)", "Rate (€/h)")
+        t.add_columns("Assignee", "Issues", "Days", "Cost (€)", "Rate (€/h)")
         self.refresh_data()
 
     def refresh_data(self) -> None:
@@ -35,7 +35,7 @@ class AssigneesTab(Widget):
             t.add_row(
                 row["display_name"],
                 str(row["issue_count"]),
-                f"{row['hours']:.1f} h",
+                str(row["man_days"]),
                 f"€ {cost:,.2f}",
                 rate,
             )

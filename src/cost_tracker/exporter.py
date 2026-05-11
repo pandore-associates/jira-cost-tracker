@@ -57,9 +57,9 @@ def export_excel(settings: Settings) -> Path:
     _autofit(ws1)
 
     ws2: Worksheet = wb.create_sheet("By Assignee")
-    _write_header(ws2, ["Assignee", "Issues", "Hours", "Cost (€)", "Rate (€/h)"])
+    _write_header(ws2, ["Assignee", "Issues", "Days", "Cost (€)", "Rate (€/h)"])
     for r in assignees:
-        ws2.append([r["display_name"], r["issue_count"], r["hours"], r["cost_eur"],
+        ws2.append([r["display_name"], r["issue_count"], r["man_days"], r["cost_eur"],
                     r["rate_eur"] if r["rate_eur"] is not None else "—"])
     _autofit(ws2)
 

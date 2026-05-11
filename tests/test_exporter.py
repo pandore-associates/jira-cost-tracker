@@ -66,7 +66,8 @@ def test_export_by_assignee_data(settings: Settings) -> None:
     rows = list(ws.iter_rows(min_row=2, values_only=True))
     assert len(rows) == 1
     assert rows[0][0] == "Alice"
-    assert rows[0][3] == 100.0     # Cost
+    assert rows[0][2] == 1       # 1 man-day (1 h ceiled)
+    assert rows[0][3] == 800.0   # 1 day × €100/h × 8 h
 
 
 def test_export_worklogs_sheet_has_raw_data(settings: Settings) -> None:
