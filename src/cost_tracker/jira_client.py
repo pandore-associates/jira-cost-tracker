@@ -31,12 +31,12 @@ class JiraClient:
         issues: list[dict[str, Any]] = []
         start_at = 0
         while True:
-            resp = httpx.get(
-                f"{self._base_url}/rest/api/3/search",
+            resp = httpx.post(
+                f"{self._base_url}/rest/api/3/issue/search",
                 auth=self._auth,
-                params={
+                json={
                     "jql": f"project={project_key}",
-                    "fields": "summary",
+                    "fields": ["summary"],
                     "startAt": start_at,
                     "maxResults": 100,
                 },
